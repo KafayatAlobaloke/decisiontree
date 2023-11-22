@@ -1,0 +1,288 @@
+---
+title: "Classification (Supervised)"
+Author: Kafayat Alobaloke
+date: "2023-11-19"
+---
+
+```{r}
+install.packages("rpart", dependencies=TRUE)
+install.packages("rpart.plot", dependencies=TRUE)
+install.packages("rattle", dependencies=TRUE)
+install.packages("party", dependencies=TRUE)
+install.packages("partykit", dependencies=TRUE)
+```
+
+```{r}
+library(corrplot)
+library(caTools)
+library(tidyverse)
+library(data.table)
+library(dplyr)
+library(party)
+library(partykit)
+library(tree)     
+library(MASS)
+library(ggplot2)
+library(cowplot)
+library(rpart) 
+library(rpart.plot) 
+library(rattle)
+```
+
+```{r}
+# Importing the data file
+cmc <- read.csv("cmc.csv")
+
+# Converting the data to a dataframe
+data <- as.data.frame(cmc)
+
+# Top rows of the data
+head(data)
+```
+# EDA
+```{r}
+# Summary of the data
+summary(data)
+```
+
+```{r}
+# Understanding the datatype of dataset
+str(data)
+```
+
+# Creating a flag for numerial variables age and number of children
+```{r}
+# Creating the age flag for and define as WifeAge variable
+data = data %>% mutate(HighWifeAge1 = if_else(WifeAge > 25,"Yes","No")) 
+table(data$HighWifeAge)
+```
+
+```{r}
+# Creating the age flag for and define as WifeAge variable
+data = data %>% mutate(HighNumChildren1 = if_else(NumChildren > 4,"Yes","No")) 
+table(data$HighNumChildren)
+```
+
+```{r}
+head(data)
+```
+
+We need to ensure that the target variable is in factor.
+Also, encoding all categorical variables as factors
+```{r}
+# Transforming the target and data variables that I will use to submit to the categorical algorithm into factors
+ContraceptiveMethod = factor(data$ContraceptiveMethod, levels = c(1,2,3), labels = c("No_use", "Long_term", "Short_term"))
+data = data[,-10]
+HighWifeAge = factor(data$HighWifeAge1)
+WifeEducation = factor(data$WifeEducation, levels = c(1,2,3,4), labels = c("Low", "Not_too_low", "Not_too_high", "High"))
+data = data[,-2]
+HusbandEducation = factor(data$HusbandEducation, levels = c(1,2,3,4), labels = c("Low", "Not_too_low", "Not_too_high", "High"))
+data = data[,-2]
+HighNumChildren = factor(data$HighNumChildren1)
+WifeReligion = factor(data$WifeReligion, levels = c(0,1), labels = c("non_Islam", "Islam"))
+data = data[,-3]
+WifeWorking = factor(data$WifeWorking, levels = c(0,1), labels = c("Yes", "No"))
+data = data[,-3]
+HusbandOccupation = factor(data$HusbandOccupation)
+data = data[,-3]
+LivingStandardIndex = factor(data$LivingStandardIndex, levels = c(1,2,3,4), labels = c("Low", "Not_too_low", "Not_too_high", "High"))
+data = data[,-3]
+MediaExposure = factor(data$MediaExposure, levels = c(0,1), labels = c("Good", "Not_good"))
+data = data[,-3]
+```
+
+```{r}
+head(data)
+```
+
+```{r}
+# Adding the newly recoded varaibles to our data
+cmcdata <- cbind(ContraceptiveMethod, data, HighWifeAge, HighNumChildren, WifeEducation, HusbandEducation, WifeReligion, WifeWorking, HusbandOccupation, LivingStandardIndex, MediaExposure)
+```
+
+```{r}
+head(cmcdata)
+```
+
+```{r}
+# Understanding the new datatype of dataset
+str(cmcdata)
+```
+
+# Exploratpry data analysis
+EDA will start looking at how many people in this dataset based on the method they use
+
+42.7% of women does not use contraceptive method, 22.6%  uses a long term contraceptive method, while 34.7%  uses a short term contraceptive method
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 3)
+
+## ggplot theme
+theme <- theme(
+    axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+)
+
+cmcdata %>%
+group_by(ContraceptiveMethod) %>%
+    summarize(
+        n = n()
+    ) %>%
+    mutate(
+        percentage = round(n / sum(n), 3),
+        n = NULL
+    ) %>%
+ggplot(aes(x = ContraceptiveMethod, y = percentage)) + geom_col(aes(fill = ContraceptiveMethod)) + theme +
+geom_text(
+        aes(x = ContraceptiveMethod, y = percentage, label = paste(percentage*100, "%", sep = ""))
+    )
+```
+
+```{r}
+## ggplot theme
+theme <- theme(
+    axis.text.y = element_blank(), axis.ticks.y = element_blank(),
+    legend.position="none" 
+)
+
+# Decrease graph size from standard
+options(repr.plot.width = 7, repr.plot.height = 3)
+
+plot_grid(
+data %>%
+    filter(ContraceptiveMethod == "Yes") %>%
+    group_by(WifeAge) %>%
+    summarize(
+        n = n()
+    ) %>%
+    mutate(
+        Percentage = round(n / sum(n), 3)
+    ) %>%
+    # Create plot
+    ggplot(
+        aes(x = WifeAge, y = Percentage, color = WifeAge)
+    ) +
+    stat_smooth(method = "lm", col = "red") +
+    geom_point(alpha = 2/3) +
+    # Clean graph visual a bit
+    theme +
+    labs(
+        x = "WifeAge", y = "ContraceptiveMethod (%)"
+    ),
+
+ggplot(
+    data = cmcdata,
+    aes(y = WifeAge, x = ContraceptiveMethod, color = ContraceptiveMethod)
+    ) +
+    theme +
+    geom_boxplot()
+, align = "h")
+```
+
+```{r}
+# Decrease graph size from standard
+options(repr.plot.width = 7, repr.plot.height = 3)
+plot_grid(
+data %>%
+    filter(ContraceptiveMethod == "Yes") %>%
+    group_by(NumChildren) %>%
+    summarize(
+        n = n()
+    ) %>%
+    mutate(
+        Percentage = round(n / sum(n), 3)
+    ) %>%
+    # Create plot
+    ggplot(
+        aes(x = NumChildren, y = Percentage, color = NumChildren)
+    ) +
+    stat_smooth(method = "lm", col = "red") +
+    geom_point(alpha = 2/3) +
+    # Clean graph visual a bit
+    theme +
+    labs(
+        x = "NumChildren", y = "ContraceptiveMethod (%)"
+    ),
+
+ggplot(
+    data = cmcdata,
+    aes(y = NumChildren, x = ContraceptiveMethod, color = ContraceptiveMethod)
+    ) +
+    theme +
+    geom_boxplot()
+, align = "h")
+```
+Older women does not seem to be using contraceptive. Also, women with the more children tend to use a long term contraceptive
+
+# Contraceptive method by Wife Education
+```{r}
+ggplot(cmcdata, aes(WifeEducation, fill = factor(ContraceptiveMethod))) +
+    geom_bar(position = "dodge2") +
+    labs(title = "Contraceptive Method by Education", fill = "Method")
+```
+
+# Contraceptive method by Media Exposure
+```{r}
+ggplot(cmcdata, aes(MediaExposure, fill = factor(MediaExposure))) +
+    geom_bar(position = "dodge2") +
+    labs(title = "Contraceptive Method by Media Exposure", fill = "Exposure status")
+```
+
+#	Preprocessing
+Check for missing data
+
+There are no records of missing data in the dataset. 
+
+```{r}
+cmcdata %>%
+    summarise_all(
+        funs(sum(is.na(.)))
+    )
+```
+ 
+```{r}
+# Deleting variables for the tree model
+cmcdatatree = subset(cmcdata, select = c(-WifeAge, -NumChildren, -HighWifeAge1, -HighNumChildren1))
+```
+
+```{r}
+head(cmcdatatree)
+```
+
+```{r}
+# Splitting data into training and testing with 60 and 40 percent respectively
+index <- sample(2, nrow(cmcdatatree), replace=TRUE, prob = c(0.60, 0.40))
+traindata <- cmcdatatree[index==1, ]
+testdata <- cmcdatatree[index==2, ]
+```
+
+# Building the ctree classification model
+```{r}
+treefit <- ctree(ContraceptiveMethod ~., data = traindata)
+plot(tree_fit, type="simple")
+```
+From above tree flow, we can have our inferences like the wife age and education level are the most significant variables as they tell us which contraceptive method is mostly used by women. 
+
+It shows 4 terminal nodes and a vector representing the proportion of instances in the node representing one of the 3 class values. For example, terminal node 5 states that 122 instances apply to this exact classification. 50% married woman out of the 122 do not use contraception, 16.5% use long-term contraception, and 3.3% ,,,,,,,,,,,,
+
+Education, being of the highest significance and our first assumption for the likelihood of contraception use, may have played a part in the level of accuracy of the model. Additionally, it was interesting to start off with the fact that the survey gave no option for a husband to not be holding an occupation. For instance, if the wife was working a job, then we do not know if the husband also was working or was not. This is a factor that we were not able to consider due to the lack of data in the dataset.
+
+
+To Evaluate the performance of the model we will check its performance on the test data set
+
+```{r}
+# Making prediction with the above model
+predict <- predict(treefit, newdata = testdata[, -1], type="response")
+matriz_conf <- table(testdata[,1], predict)
+library(caret)
+confusionMatrix(matriz_conf)
+```
+From above confusion matrix report, we have 43% accuracy of the model on test data i.e 43% of the test values are correctly classified. And misclassification rate is around 57%.
+
+Furthermore, the below table calculates each of the model evaluation methods based off the test data confusion matrix. The true positive will be used as the number of women who are not using contraception and the true negative will be used as the number of those using both long-term and short-term contraception. \
+
+
+Every percentage of each of the evaluation methods in the table show a decrease between the training data and test data. If the model starts off overfitting on the training data, it will not generalize well for new unseen data, like the test data. Every dataset going forth that uses this model will have a similar outcome – low classification accuracy and other low evaluation metrics.
+
+
+
+# Model Properties
+discussion on the properties of model you fitted; leverage quantitative metrics, like p values, AIC, deviance, etc. to discuss the model properties.
